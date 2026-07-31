@@ -1,4 +1,4 @@
-// ================================================================
+﻿// ================================================================
 //  game.js  —  未羊秘境 · 星罗六合阵 核心逻辑
 //  依赖：config.js（提供 STAR_SLUGS, META_SLUGS, LEVEL_NAMES,
 //        META_NAMES, getStarPath, getMetaPath, getUnlockKey）
