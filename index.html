@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8" />
@@ -7,6 +7,8 @@
 
     <!-- ===== 全局配置（必须放在最前面） ===== -->
     <script src="config.js"></script>
+    <!-- ===== 公共页面逻辑（负责渲染关卡列表、侧边栏等） ===== -->
+    <script src="puzzlelist.js"></script>
 
     <style>
         /* ========== 全局重置 ========== */
@@ -179,18 +181,10 @@
         }
 
         @keyframes unlockPulse {
-            0% {
-                transform: translate(-50%, -50%) scale(1);
-            }
-            30% {
-                transform: translate(-50%, -50%) scale(1.5);
-            }
-            60% {
-                transform: translate(-50%, -50%) scale(0.9);
-            }
-            100% {
-                transform: translate(-50%, -50%) scale(1);
-            }
+            0% { transform: translate(-50%, -50%) scale(1); }
+            30% { transform: translate(-50%, -50%) scale(1.5); }
+            60% { transform: translate(-50%, -50%) scale(0.9); }
+            100% { transform: translate(-50%, -50%) scale(1); }
         }
 
         .point:not(.unlocked):hover {
@@ -481,6 +475,7 @@
                 <button class="reset-btn" id="resetBtn">⟳ 重置位置</button>
             </div>
 
+            <!-- 关卡列表由 puzzlelist.js 动态渲染 -->
             <div class="level-list" id="levelList"></div>
 
             <!-- 调试按钮：重置所有进度 -->
@@ -490,7 +485,7 @@
         </div>
     </div>
 
-    <!-- ===== 核心脚本 ===== -->
+    <!-- ===== 核心交互脚本（阵法拖拽逻辑） ===== -->
     <script src="game.js"></script>
 
 </body>
