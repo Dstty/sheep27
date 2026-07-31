@@ -1,4 +1,4 @@
-﻿// ================================================================
+// ================================================================
 //  game.js  —  未羊秘境 · 星罗六合阵 核心逻辑
 //  依赖：config.js（提供 STAR_SLUGS, META_SLUGS, LEVEL_NAMES,
 //        META_NAMES, getStarPath, getMetaPath, getUnlockKey）
@@ -26,6 +26,7 @@
     let initialPositions = [];
     let dragState = null;
     let resizeTimer = null;
+    let isTouchDragging = false;    // 新增：防止触摸与鼠标事件冲突
 
     // ==============================================================
     //  存储工具（位置、解锁状态）
@@ -430,7 +431,7 @@
     }
 
     // ==============================================================
-    //  点交互（点击 / 拖拽）
+    //  点交互（点击 / 拖拽）—— 增加触摸支持
     // ==============================================================
     function handlePointClick(e) {
         e.stopPropagation();
@@ -444,7 +445,9 @@
         if (path !== '#') window.location.href = path;
     }
 
+    // ---- 鼠标事件 ----
     function handleMouseDown(e) {
+        if (isTouchDragging) return;   // 防止触摸后鼠标干扰
         const el = e.currentTarget;
         const index = parseInt(el.dataset.index, 10);
         const point = points[index];
@@ -523,6 +526,94 @@
         updateLines();
     }
 
+    // ---- 触摸事件（新增） ----
+    function handleTouchStart(e) {
+        const el = e.currentTarget;
+        const index = parseInt(el.dataset.index, 10);
+        const point = points[index];
+        if (!point || !point.unlocked) return;
+
+        e.preventDefault(); // 阻止滚动或缩放
+
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.clientWidth / rect.width;
+        const scaleY = canvas.clientHeight / rect.height;
+
+        const touchX = (touch.clientX - rect.left) * scaleX;
+        const touchY = (touch.clientY - rect.top) * scaleY;
+
+        isTouchDragging = true;
+        dragState = {
+            pointIndex: index,
+            offsetX: point.x - touchX,
+            offsetY: point.y - touchY,
+            started: false,
+        };
+
+        el.classList.add('dragging');
+        document.addEventListener('touchmove', handleTouchMove, { passive: false });
+        document.addEventListener('touchend', handleTouchEnd);
+        document.addEventListener('touchcancel', handleTouchEnd);
+    }
+
+    function handleTouchMove(e) {
+        if (!dragState) return;
+        e.preventDefault();
+
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.clientWidth / rect.width;
+        const scaleY = canvas.clientHeight / rect.height;
+
+        const touchX = (touch.clientX - rect.left) * scaleX;
+        const touchY = (touch.clientY - rect.top) * scaleY;
+
+        const idx = dragState.pointIndex;
+        const point = points[idx];
+        if (!point) return;
+
+        dragState.started = true;
+
+        let newX = touchX + dragState.offsetX;
+        let newY = touchY + dragState.offsetY;
+
+        const half = POINT_SIZE / 2;
+        const maxX = canvas.clientWidth - half;
+        const maxY = canvas.clientHeight - half;
+        newX = Math.max(half, Math.min(maxX, newX));
+        newY = Math.max(half, Math.min(maxY, newY));
+
+        point.x = newX;
+        point.y = newY;
+        point.el.style.left = newX + 'px';
+        point.el.style.top = newY + 'px';
+
+        updateLines();
+    }
+
+    function handleTouchEnd(e) {
+        if (!dragState) return;
+        const idx = dragState.pointIndex;
+        const point = points[idx];
+        if (point) {
+            point.el.classList.remove('dragging');
+        }
+        const wasDragging = dragState.started;
+        dragState = null;
+        isTouchDragging = false;
+        if (wasDragging) {
+            savePositionsToStorage();
+            saveContainerMeta();
+            window.__justDragged = true;
+            setTimeout(() => { window.__justDragged = false; }, 50);
+        }
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+        document.removeEventListener('touchcancel', handleTouchEnd);
+        updateLines();
+    }
+
     // ==============================================================
     //  创建阵点
     // ==============================================================
@@ -568,8 +659,11 @@
 
             if (unlocked) el.classList.add('unlocked');
 
+            // 同时绑定鼠标和触摸事件
             el.addEventListener('click', handlePointClick);
             el.addEventListener('mousedown', handleMouseDown);
+            el.addEventListener('touchstart', handleTouchStart, { passive: false });
+
             canvas.appendChild(el);
         }
 
@@ -623,6 +717,8 @@
 
                 el.addEventListener('click', handlePointClick);
                 el.addEventListener('mousedown', handleMouseDown);
+                el.addEventListener('touchstart', handleTouchStart, { passive: false });
+
                 canvas.appendChild(el);
             }
 
