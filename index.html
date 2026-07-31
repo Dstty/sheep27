@@ -1,9 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>未羊秘境 · 星罗六合阵</title>
+
+    <!-- ===== 全局配置（必须放在最前面） ===== -->
+    <script src="config.js"></script>
+
     <style>
         /* ========== 全局重置 ========== */
         * {
@@ -192,6 +196,15 @@
         .point:not(.unlocked):hover {
             background: #50506a;
         }
+        .point {
+            cursor: pointer;
+        }
+        .point.unlocked {
+            cursor: grab;
+        }
+        .point.unlocked.dragging {
+            cursor: grabbing;
+        }
 
         /* ========== 底部区域 ========== */
         .bottom-area {
@@ -249,7 +262,18 @@
             transform: scale(0.96);
         }
 
-        /* ========== 关卡列表（100%宽） ========== */
+        /* 调试重置按钮特殊样式 */
+        .debug-reset-btn {
+            border-color: rgba(200, 80, 80, 0.3) !important;
+            color: rgba(200, 120, 120, 0.6) !important;
+        }
+        .debug-reset-btn:hover {
+            border-color: rgba(200, 80, 80, 0.6) !important;
+            color: #e09090 !important;
+            background: rgba(200, 80, 80, 0.12) !important;
+        }
+
+        /* ========== 关卡列表 ========== */
         .level-list {
             display: flex;
             flex-direction: column;
@@ -262,16 +286,14 @@
             gap: 4px;
         }
 
-        /* ----- 关卡条目容器 ----- */
         .level-items {
             display: flex;
             flex-direction: column;
             gap: 4px;
         }
 
-        /* ----- Meta条目容器 ----- */
         .meta-items {
-            display: none;          /* 默认隐藏，有内容时显示 */
+            display: none;
             flex-direction: column;
             gap: 4px;
             margin-top: 10px;
@@ -291,10 +313,15 @@
             font-size: 18px;
             font-family: 'Segoe UI', 'PingFang SC', sans-serif;
             color: rgba(200, 190, 180, 0.8);
-            transition: background 0.2s;
+            transition: background 0.2s, color 0.2s;
+            cursor: pointer;
         }
         .level-item:hover {
-            background: rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.07);
+            color: #f0e4d0;
+        }
+        .level-item:active {
+            transform: scale(0.98);
         }
 
         .level-item .status {
@@ -309,15 +336,23 @@
             text-shadow: 0 0 12px rgba(255, 200, 60, 0.3);
         }
 
-        /* Meta 条目使用未完成状态（☐） */
         .level-item.meta-item .status {
-            color: rgba(200, 190, 180, 0.6);
             font-size: 22px;
         }
 
         .level-item .name {
             font-weight: 300;
             letter-spacing: 0.5px;
+        }
+
+        .level-item .hint-arrow {
+            margin-left: auto;
+            font-size: 14px;
+            color: rgba(200, 190, 180, 0.25);
+            transition: color 0.3s;
+        }
+        .level-item:hover .hint-arrow {
+            color: rgba(200, 190, 180, 0.6);
         }
 
         /* ========== 响应式 ========== */
@@ -423,10 +458,10 @@
         <!-- 剧情 -->
         <div class="story-area">
             <div class="story-text">
-                <span class="highlight">白光一闪</span>，你的感知仿佛坠入了一片无垠的灰色虚空。<br>
-                虚空中，一个古老、干涩，却又带着一种祥和慈悲的声音响起：<br>
-                <span class="voice">“寻宝者，能在丁未羊年新年之际踏入这未羊秘境，也算与吾有缘。”</span><br>
-                <span class="voice">“但天下没有白得的好处。若想取走这阵眼深处的秘藏，你还需亲手补全这<span class="highlight">星罗六合阵</span>。”</span><br>
+                <span class="highlight">白光一闪</span>，你的感知仿佛坠入了一片无垠的灰色虚空。<br />
+                虚空中，一个古老、干涩，却又带着一种祥和慈悲的声音响起：<br />
+                <span class="voice">“寻宝者，能在丁未羊年新年之际踏入这未羊秘境，也算与吾有缘。”</span><br />
+                <span class="voice">“但天下没有白得的好处。若想取走这阵眼深处的秘藏，你还需亲手补全这<span class="highlight">星罗六合阵</span>。”</span><br />
                 <span class="voice indent">“这些基石皆带有试炼烙印。未解其关者，皆为死铁，沉重难移；破其试炼者，方可任你驱使挪动。去点亮它们吧，让沉睡的星辰重新苏醒。”</span>
             </div>
         </div>
@@ -434,7 +469,6 @@
         <!-- 画布 -->
         <div class="canvas-area" id="canvasArea">
             <canvas id="lineCanvas"></canvas>
-            <!-- 阵点由 JavaScript 动态生成 -->
         </div>
 
         <!-- 底部 -->
@@ -443,558 +477,21 @@
                 ⚡ 六合阵法完成程度：<span class="num" id="completionCount">0</span> / 6
             </div>
 
-            <!-- 重置按钮 -->
             <div class="reset-wrapper">
                 <button class="reset-btn" id="resetBtn">⟳ 重置位置</button>
             </div>
 
-            <!-- 关卡列表 + Meta 列表 -->
-            <div class="level-list" id="levelList">
-                <!-- level-items 和 meta-items 由 JavaScript 动态创建 -->
-            </div>
+            <div class="level-list" id="levelList"></div>
 
-            <!-- 祝贺信息已移除 -->
+            <!-- 调试按钮：重置所有进度 -->
+            <div class="reset-wrapper">
+                <button class="reset-btn debug-reset-btn" id="debugResetBtn">⚠ 重置所有进度（调试）</button>
+            </div>
         </div>
     </div>
 
-    <script>
-        (function() {
-            'use strict';
+    <!-- ===== 核心脚本 ===== -->
+    <script src="game.js"></script>
 
-            // -------- 配置 --------
-            const POINT_COUNT = 11;
-            const POINT_SIZE = 22;
-            const COLLINEAR_THRESHOLD = 3;
-
-            // 关卡名字
-            const LEVEL_NAMES = [
-                'Only Out to Daoyou',
-                '拼图',
-                '调查问卷',
-                '飞羊令',
-                '格线之中',
-                '我和dpsk聊了一整晚',
-                '混乱文章',
-                '共通密码',
-                '连珠',
-                '炼药房',
-                '红黄蓝绿'
-            ];
-
-            // -------- Meta 映射（只保留名字，状态用☐） --------
-            const META_NAMES = [
-                '阵法共鸣·北极',
-                '阵法共鸣·壁画',
-                '阵法共鸣·核心',
-                '阵法共鸣·南极',
-                '阵法共鸣·东极',
-                '阵法共鸣·西极'
-            ];
-
-            // -------- DOM 引用 --------
-            const canvas = document.getElementById('canvasArea');
-            const lineCanvas = document.getElementById('lineCanvas');
-            const ctx = lineCanvas.getContext('2d');
-            const completionSpan = document.getElementById('completionCount');
-            const levelListEl = document.getElementById('levelList');
-            const resetBtn = document.getElementById('resetBtn');
-
-            // -------- 状态 --------
-            const points = [];
-            let initialPositions = [];
-            let dragState = null;
-
-            // -------- 生成均匀分布在圆上的位置 --------
-            function generatePositions(count, containerWidth, containerHeight) {
-                const positions = [];
-                const cx = containerWidth / 2;
-                const cy = containerHeight / 2;
-                const radius = Math.min(containerWidth, containerHeight) * 0.36;
-
-                for (let i = 0; i < count; i++) {
-                    const angle = (i / count) * 2 * Math.PI - Math.PI / 2;
-                    let x = cx + radius * Math.cos(angle);
-                    let y = cy + radius * Math.sin(angle);
-                    const half = POINT_SIZE / 2;
-                    x = Math.max(half, Math.min(containerWidth - half, x));
-                    y = Math.max(half, Math.min(containerHeight - half, y));
-                    positions.push({ x, y });
-                }
-                return positions;
-            }
-
-            // -------- 确保画布尺寸 --------
-            function ensureCanvasSize() {
-                const w = canvas.clientWidth;
-                const h = canvas.clientHeight;
-                if (lineCanvas.width !== w || lineCanvas.height !== h) {
-                    lineCanvas.width = w;
-                    lineCanvas.height = h;
-                }
-            }
-
-            // -------- 共线检测 --------
-            function detectCollinearLines(pts) {
-                const n = pts.length;
-                const candidates = [];
-
-                for (let i = 0; i < n; i++) {
-                    for (let j = i + 1; j < n; j++) {
-                        const p1 = pts[i];
-                        const p2 = pts[j];
-                        const dx = p2.x - p1.x;
-                        const dy = p2.y - p1.y;
-                        if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) continue;
-
-                        const A = dy;
-                        const B = -dx;
-                        const C = -(A * p1.x + B * p1.y);
-                        const norm = Math.sqrt(A * A + B * B);
-                        if (norm < 1e-6) continue;
-                        const a = A / norm;
-                        const b = B / norm;
-                        const c = C / norm;
-
-                        const indices = [];
-                        for (let m = 0; m < n; m++) {
-                            const p = pts[m];
-                            const dist = Math.abs(a * p.x + b * p.y + c);
-                            if (dist < COLLINEAR_THRESHOLD) {
-                                indices.push(m);
-                            }
-                        }
-                        if (indices.length >= 4) {
-                            candidates.push(new Set(indices));
-                        }
-                    }
-                }
-
-                let merged = [];
-                for (let set of candidates) {
-                    let mergedWith = false;
-                    for (let i = 0; i < merged.length; i++) {
-                        const existing = merged[i];
-                        let intersectCount = 0;
-                        for (let idx of set) {
-                            if (existing.has(idx)) intersectCount++;
-                        }
-                        if (intersectCount >= 2) {
-                            for (let idx of set) {
-                                existing.add(idx);
-                            }
-                            mergedWith = true;
-                            break;
-                        }
-                    }
-                    if (!mergedWith) {
-                        merged.push(new Set(set));
-                    }
-                }
-
-                let changed = true;
-                while (changed) {
-                    changed = false;
-                    for (let i = 0; i < merged.length; i++) {
-                        for (let j = i + 1; j < merged.length; j++) {
-                            const setA = merged[i];
-                            const setB = merged[j];
-                            let intersectCount = 0;
-                            for (let idx of setA) {
-                                if (setB.has(idx)) intersectCount++;
-                            }
-                            if (intersectCount >= 2) {
-                                for (let idx of setB) {
-                                    setA.add(idx);
-                                }
-                                merged.splice(j, 1);
-                                changed = true;
-                                break;
-                            }
-                        }
-                        if (changed) break;
-                    }
-                }
-
-                return merged;
-            }
-
-            // -------- 绘制金色线条 --------
-            function drawLines(lines, pts) {
-                ensureCanvasSize();
-                ctx.clearRect(0, 0, lineCanvas.width, lineCanvas.height);
-                if (lines.length === 0) return;
-
-                ctx.save();
-                ctx.strokeStyle = '#FFD700';
-                ctx.lineWidth = 2.5;
-                ctx.shadowColor = '#FFD700';
-                ctx.shadowBlur = 12;
-                ctx.globalAlpha = 0.85;
-
-                for (let set of lines) {
-                    const arr = Array.from(set);
-                    if (arr.length < 2) continue;
-                    const pointList = arr.map(idx => pts[idx]);
-                    let maxDist = -1;
-                    let p1 = pointList[0],
-                        p2 = pointList[0];
-                    for (let i = 0; i < pointList.length; i++) {
-                        for (let j = i + 1; j < pointList.length; j++) {
-                            const d = Math.hypot(pointList[i].x - pointList[j].x, pointList[i].y - pointList[j].y);
-                            if (d > maxDist) {
-                                maxDist = d;
-                                p1 = pointList[i];
-                                p2 = pointList[j];
-                            }
-                        }
-                    }
-                    const dx = p2.x - p1.x;
-                    const dy = p2.y - p1.y;
-                    const len = Math.hypot(dx, dy);
-                    if (len < 1) continue;
-                    const ex = dx / len;
-                    const ey = dy / len;
-                    const extend = 25;
-                    const x1 = p1.x - ex * extend;
-                    const y1 = p1.y - ey * extend;
-                    const x2 = p2.x + ex * extend;
-                    const y2 = p2.y + ey * extend;
-
-                    ctx.beginPath();
-                    ctx.moveTo(x1, y1);
-                    ctx.lineTo(x2, y2);
-                    ctx.stroke();
-                }
-                ctx.restore();
-            }
-
-            // -------- 更新共线检测、完成度、Meta条目 --------
-            function updateLines() {
-                const pts = points.map(p => ({ x: p.x, y: p.y, id: p.id }));
-                const lines = detectCollinearLines(pts);
-                drawLines(lines, pts);
-                const count = lines.length;
-                completionSpan.textContent = count;
-
-                // 更新 Meta 条目
-                renderMetaItems(count);
-            }
-
-            // -------- 渲染 Meta 条目（根据线条数，显示☐状态） --------
-            function renderMetaItems(lineCount) {
-                const metaContainer = document.getElementById('metaItems');
-                if (!metaContainer) return;
-
-                // 清空
-                metaContainer.innerHTML = '';
-
-                if (lineCount === 0) {
-                    metaContainer.classList.remove('visible');
-                    return;
-                }
-
-                // 显示容器
-                metaContainer.classList.add('visible');
-
-                const showCount = Math.min(lineCount, META_NAMES.length);
-                for (let i = 0; i < showCount; i++) {
-                    const item = document.createElement('div');
-                    item.className = 'level-item meta-item';
-
-                    const statusSpan = document.createElement('span');
-                    statusSpan.className = 'status';
-                    statusSpan.textContent = '☐';   // 未完成状态
-                    statusSpan.title = `第${i+1}条线`;
-
-                    const nameSpan = document.createElement('span');
-                    nameSpan.className = 'name';
-                    nameSpan.textContent = META_NAMES[i];
-
-                    item.appendChild(statusSpan);
-                    item.appendChild(nameSpan);
-                    metaContainer.appendChild(item);
-                }
-            }
-
-            // -------- 更新关卡列表（只负责关卡条目） --------
-            function updateLevelList() {
-                const levelContainer = document.getElementById('levelItems');
-                if (!levelContainer) return;
-
-                levelContainer.innerHTML = '';
-                for (let i = 0; i < points.length; i++) {
-                    const p = points[i];
-                    const item = document.createElement('div');
-                    item.className = 'level-item';
-
-                    const statusSpan = document.createElement('span');
-                    statusSpan.className = 'status';
-                    if (p.unlocked) {
-                        statusSpan.textContent = '✅';
-                        statusSpan.classList.add('done');
-                    } else {
-                        statusSpan.textContent = '☐';
-                    }
-
-                    const nameSpan = document.createElement('span');
-                    nameSpan.className = 'name';
-                    nameSpan.textContent = LEVEL_NAMES[i] || `第${i+1}关`;
-
-                    item.appendChild(statusSpan);
-                    item.appendChild(nameSpan);
-                    levelContainer.appendChild(item);
-                }
-            }
-
-            // -------- 重置位置 --------
-            function resetPositions() {
-                if (!initialPositions.length) return;
-                for (let i = 0; i < points.length; i++) {
-                    const p = points[i];
-                    p.x = initialPositions[i].x;
-                    p.y = initialPositions[i].y;
-                    p.el.style.left = p.x + 'px';
-                    p.el.style.top = p.y + 'px';
-                    p.el.classList.remove('dragging', 'just-unlocked');
-                }
-                updateLines();
-                updateLevelList();
-            }
-
-            // -------- 创建阵点 --------
-            function createPoints() {
-                const cw = canvas.clientWidth;
-                const ch = canvas.clientHeight;
-                const posList = generatePositions(POINT_COUNT, cw, ch);
-                initialPositions = posList.slice();
-
-                canvas.querySelectorAll('.point').forEach(el => el.remove());
-
-                for (let i = 0; i < POINT_COUNT; i++) {
-                    const pos = posList[i];
-                    const el = document.createElement('div');
-                    el.className = 'point';
-                    el.dataset.index = i;
-                    el.style.left = pos.x + 'px';
-                    el.style.top = pos.y + 'px';
-                    el.title = LEVEL_NAMES[i] || `第${i+1}关`;
-
-                    const pointData = {
-                        el: el,
-                        x: pos.x,
-                        y: pos.y,
-                        unlocked: false,
-                        id: i,
-                    };
-                    points.push(pointData);
-
-                    el.addEventListener('click', handleClick);
-                    el.addEventListener('dblclick', handleDblClick);
-                    el.addEventListener('mousedown', handleMouseDown);
-
-                    canvas.appendChild(el);
-                }
-
-                updateLevelList();
-                updateLines();
-            }
-
-            // -------- 事件处理 --------
-            function handleClick(e) {
-                e.stopPropagation();
-            }
-
-            function handleDblClick(e) {
-                e.stopPropagation();
-                const el = e.currentTarget;
-                const index = parseInt(el.dataset.index, 10);
-                const point = points[index];
-                if (!point || point.unlocked) return;
-
-                point.unlocked = true;
-                el.classList.add('unlocked', 'just-unlocked');
-                setTimeout(() => el.classList.remove('just-unlocked'), 700);
-
-                updateLevelList();
-                updateLines();
-            }
-
-            // -------- 拖拽 --------
-            function handleMouseDown(e) {
-                const el = e.currentTarget;
-                const index = parseInt(el.dataset.index, 10);
-                const point = points[index];
-                if (!point || !point.unlocked) return;
-
-                e.preventDefault();
-
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.clientWidth / rect.width;
-                const scaleY = canvas.clientHeight / rect.height;
-
-                const mouseX = (e.clientX - rect.left) * scaleX;
-                const mouseY = (e.clientY - rect.top) * scaleY;
-
-                dragState = {
-                    pointIndex: index,
-                    offsetX: point.x - mouseX,
-                    offsetY: point.y - mouseY,
-                };
-
-                el.classList.add('dragging');
-
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
-            }
-
-            function handleMouseMove(e) {
-                if (!dragState) return;
-                e.preventDefault();
-
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.clientWidth / rect.width;
-                const scaleY = canvas.clientHeight / rect.height;
-
-                const mouseX = (e.clientX - rect.left) * scaleX;
-                const mouseY = (e.clientY - rect.top) * scaleY;
-
-                const idx = dragState.pointIndex;
-                const point = points[idx];
-                if (!point) return;
-
-                let newX = mouseX + dragState.offsetX;
-                let newY = mouseY + dragState.offsetY;
-
-                const half = POINT_SIZE / 2;
-                const maxX = canvas.clientWidth - half;
-                const maxY = canvas.clientHeight - half;
-                newX = Math.max(half, Math.min(maxX, newX));
-                newY = Math.max(half, Math.min(maxY, newY));
-
-                point.x = newX;
-                point.y = newY;
-                point.el.style.left = newX + 'px';
-                point.el.style.top = newY + 'px';
-
-                updateLines();
-            }
-
-            function handleMouseUp(e) {
-                if (!dragState) return;
-                const idx = dragState.pointIndex;
-                const point = points[idx];
-                if (point) {
-                    point.el.classList.remove('dragging');
-                }
-                dragState = null;
-                document.removeEventListener('mousemove', handleMouseMove);
-                document.removeEventListener('mouseup', handleMouseUp);
-                updateLines();
-            }
-
-            // -------- 窗口尺寸变化 --------
-            let resizeTimer = null;
-
-            function handleResize() {
-                if (resizeTimer) {
-                    cancelAnimationFrame(resizeTimer);
-                    resizeTimer = null;
-                }
-                resizeTimer = requestAnimationFrame(() => {
-                    const unlockedStates = points.map(p => p.unlocked);
-                    points.length = 0;
-                    canvas.querySelectorAll('.point').forEach(el => el.remove());
-
-                    const cw = canvas.clientWidth;
-                    const ch = canvas.clientHeight;
-                    const posList = generatePositions(POINT_COUNT, cw, ch);
-                    initialPositions = posList.slice();
-
-                    for (let i = 0; i < POINT_COUNT; i++) {
-                        const pos = posList[i];
-                        const el = document.createElement('div');
-                        el.className = 'point';
-                        el.dataset.index = i;
-                        el.style.left = pos.x + 'px';
-                        el.style.top = pos.y + 'px';
-                        el.title = LEVEL_NAMES[i] || `第${i+1}关`;
-
-                        const pointData = {
-                            el: el,
-                            x: pos.x,
-                            y: pos.y,
-                            unlocked: unlockedStates[i] || false,
-                            id: i,
-                        };
-                        points.push(pointData);
-
-                        if (pointData.unlocked) {
-                            el.classList.add('unlocked');
-                        }
-
-                        el.addEventListener('click', handleClick);
-                        el.addEventListener('dblclick', handleDblClick);
-                        el.addEventListener('mousedown', handleMouseDown);
-
-                        canvas.appendChild(el);
-                    }
-
-                    ensureCanvasSize();
-                    updateLevelList();
-                    updateLines();
-                    resizeTimer = null;
-                });
-            }
-
-            // -------- 初始化容器（level-items + meta-items） --------
-            function initContainers() {
-                levelListEl.innerHTML = '';
-
-                const levelContainer = document.createElement('div');
-                levelContainer.id = 'levelItems';
-                levelContainer.className = 'level-items';
-
-                const metaContainer = document.createElement('div');
-                metaContainer.id = 'metaItems';
-                metaContainer.className = 'meta-items'; // 默认 hidden (display:none)
-
-                levelListEl.appendChild(levelContainer);
-                levelListEl.appendChild(metaContainer);
-            }
-
-            // -------- 初始化 --------
-            function init() {
-                initContainers();
-                ensureCanvasSize();
-                createPoints();
-
-                let ro = null;
-                if (window.ResizeObserver) {
-                    ro = new ResizeObserver(() => handleResize());
-                    ro.observe(canvas);
-                } else {
-                    window.addEventListener('resize', handleResize);
-                }
-
-                requestAnimationFrame(() => {
-                    ensureCanvasSize();
-                    updateLines();
-                });
-
-                resetBtn.addEventListener('click', resetPositions);
-            }
-
-            if (document.readyState === 'complete') {
-                init();
-            } else {
-                window.addEventListener('load', init);
-            }
-
-            // 暴露调试
-            window.__points = points;
-            window.__updateLines = updateLines;
-
-        })();
-    </script>
 </body>
 </html>
